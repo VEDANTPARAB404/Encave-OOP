@@ -1,7 +1,3 @@
-// Chomp & Co. - Simple Restaurant Management System
-// Concepts used: classes & objects, constructors, encapsulation (private/public), composition (has-a)
-// Compile:  g++ resto.cpp -o resto
-// Run:      ./restaurant      -> take an order, then open bill.html in your browser
 #include <iostream>
 #include <fstream>
 #include <vector>
