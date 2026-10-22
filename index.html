@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chomp & Co. Restaurant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Special+Elite&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="banner">
+    
+    <h1>Encave</h1>
+  </header>
+
+  <main class="layout">
+    <section class="menu-panel">
+      <div class="welcome">
+        <p class="eyebrow">WELCOME TO</p>
+        <h2>Build your meal</h2>
+        <p>Choose your meals and sides, then generate your bill.</p>
+      </div>
+
+      <label class="table-label" for="table-number">Table number</label>
+      <input id="table-number" class="table-input" type="number" min="1" value="3">
+
+      <h3>Meals</h3>
+      <div id="meals" class="menu-grid"></div>
+
+      <h3>Sides</h3>
+      <div id="sides" class="menu-grid"></div>
+    </section>
+
+    <aside class="cart-panel">
+      <div class="cart-heading">
+        <h2>Your order</h2>
+        <span id="cart-count" class="count">0 items</span>
+      </div>
+      <div id="cart-items" class="cart-items">
+        <p class="empty">Your order is empty.<br>Choose something tasty!</p>
+      </div>
+      <div class="totals">
+        <div><span>Subtotal</span><strong id="subtotal">Rs. 0.00</strong></div>
+        <div><span>GST (5%)</span><strong id="gst">Rs. 0.00</strong></div>
+        <div class="grand"><span>Total</span><strong id="total">Rs. 0.00</strong></div>
+      </div>
+      <button id="bill-button" class="bill-button" type="button">Generate Bill</button>
+      <p id="message" class="message"></p>
+    </aside>
+  </main>
+
+  <section id="bill" class="bill hidden">
+    <div class="bill-top">
+      <div>
+        <p class="eyebrow">YOUR RECEIPT</p>
+        <h2>Encave</h2>
+        <p>Vyas, MIT WPU</p>,<br>GSTIN: 27ABCDE1234F1Z5</p>
+      </div>
+      <button id="new-order" class="secondary-button" type="button">New Order</button>
+    </div>
+    <div class="bill-info"><span id="bill-number"></span><span id="bill-table"></span></div>
+    <div id="bill-lines"></div>
+    <div class="bill-total"><span>Subtotal</span><span id="bill-subtotal"></span></div>
+    <div class="bill-total"><span>GST 5%</span><span id="bill-gst"></span></div>
+    <div class="bill-total grand"><span>Grand total</span><span id="bill-total"></span></div>
+    <p class="thank-you">*** Thank you! Visit again ***</p>
+  </section>
+
+  <script>
+    class MenuItem {
+      constructor(name, price, type) {
+        this.name = name;
+        this.price = price;
+        this.type = type;
+      }
+    }
+
+    class RestaurantOrder {
+      constructor() {
+        this.items = [];
+      }
+
+      add(item) {
+        const existing = this.items.find(orderItem => orderItem.item.name === item.name);
+        if (existing) existing.quantity++;
+        else this.items.push({ item: item, quantity: 1 });
+      }
+
+      remove(itemName) {
+        const existing = this.items.find(orderItem => orderItem.item.name === itemName);
+        if (!existing) return;
+        if (existing.quantity > 1) existing.quantity--;
+        else this.items = this.items.filter(orderItem => orderItem.item.name !== itemName);
+      }
+
+      subtotal() {
+        return this.items.reduce((sum, orderItem) =>
+          sum + orderItem.item.price * orderItem.quantity, 0);
+      }
+
+      gst() {
+        return this.subtotal() * 0.05;
+      }
+
+      total() {
+        return this.subtotal() + this.gst();
+      }
+    }
+
+    const menu = {
+      meals: [
+        new MenuItem("Paneer Butter Masala", 220, "meal"),
+        new MenuItem("Veg Burger", 120, "meal"),
+        new MenuItem("Margherita Pizza", 249, "meal"),
+        new MenuItem("Veg Noodles", 150, "meal"),
+        new MenuItem("Masala Dosa", 90, "meal")
+      ],
+      sides: [
+        new MenuItem("French Fries", 70, "side"),
+        new MenuItem("Filter Coffee", 60, "side"),
+        new MenuItem("Cold Drink", 50, "side"),
+        new MenuItem("Ice Cream", 80, "side")
+      ]
+    };
+    const order = new RestaurantOrder();
+    const money = amount => `Rs. ${amount.toFixed(2)}`;
+
+    function showMenu(items, elementId) {
+      const container = document.getElementById(elementId);
+      items.forEach(item => {
+        const card = document.createElement("article");
+        card.className = "menu-card";
+        card.innerHTML = `<span class="food-icon">${item.type === "meal" ? "🍛" : "🍟"}</span>
+          <div><h4>${item.name}</h4><p>${money(item.price)}</p></div>
+          <button type="button" aria-label="Add ${item.name}">+</button>`;
+        card.querySelector("button").addEventListener("click", () => {
+          order.add(item);
+          updateCart();
+        });
+        container.appendChild(card);
+      });
+    }
+
+    function updateCart() {
+      const container = document.getElementById("cart-items");
+      const count = order.items.reduce((sum, line) => sum + line.quantity, 0);
+      document.getElementById("cart-count").textContent = `${count} item${count === 1 ? "" : "s"}`;
+      container.innerHTML = "";
+      if (!order.items.length) {
+        container.innerHTML = '<p class="empty">Your order is empty.<br>Choose something tasty!</p>';
+      } else {
+        order.items.forEach(line => {
+          const row = document.createElement("div");
+          row.className = "cart-row";
+          row.innerHTML = `<div><strong>${line.item.name}</strong><small>${money(line.item.price)} each</small></div>
+            <div class="quantity"><button type="button">−</button><span>${line.quantity}</span><button type="button">+</button></div>
+            <strong>${money(line.item.price * line.quantity)}</strong>`;
+          row.querySelectorAll("button")[0].addEventListener("click", () => { order.remove(line.item.name); updateCart(); });
+          row.querySelectorAll("button")[1].addEventListener("click", () => { order.add(line.item); updateCart(); });
+          container.appendChild(row);
+        });
+      }
+      document.getElementById("subtotal").textContent = money(order.subtotal());
+      document.getElementById("gst").textContent = money(order.gst());
+      document.getElementById("total").textContent = money(order.total());
+    }
+
+    function generateBill() {
+      const message = document.getElementById("message");
+      const table = document.getElementById("table-number").value;
+      if (!order.items.length) {
+        message.textContent = "Please add at least one item first.";
+        return;
+      }
+      if (!table || Number(table) < 1) {
+        message.textContent = "Please enter a valid table number.";
+        return;
+      }
+      document.getElementById("bill-number").textContent = "Bill No: #0001";
+      document.getElementById("bill-table").textContent = `Table ${table}`;
+      document.getElementById("bill-lines").innerHTML = order.items.map(line =>
+        `<div class="bill-line"><span>${line.item.name} × ${line.quantity}</span>
+        <span>${money(line.item.price * line.quantity)}</span></div>`).join("");
+      document.getElementById("bill-subtotal").textContent = money(order.subtotal());
+      document.getElementById("bill-gst").textContent = money(order.gst());
+      document.getElementById("bill-total").textContent = money(order.total());
+      document.getElementById("bill").classList.remove("hidden");
+      document.getElementById("bill").scrollIntoView({ behavior: "smooth" });
+      message.textContent = "";
+    }
+
+    document.getElementById("bill-button").addEventListener("click", generateBill);
+    document.getElementById("new-order").addEventListener("click", () => {
+      order.items = [];
+      updateCart();
+      document.getElementById("bill").classList.add("hidden");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    showMenu(menu.meals, "meals");
+    showMenu(menu.sides, "sides");
+    updateCart();
+  </script>
+</body>
+</html>
