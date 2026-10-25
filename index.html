@@ -21,8 +21,19 @@
         <p>Choose your meals and sides, then generate your bill.</p>
       </div>
 
-      <label class="table-label" for="table-number">Table number</label>
-      <input id="table-number" class="table-input" type="number" min="1" value="3">
+      <label class="table-label" for="delivery-type">How would you like your order?</label>
+      <select id="delivery-type" class="table-input">
+        <option value="classroom">Classroom delivery</option>
+        <option value="pickup">Counter pickup</option>
+      </select>
+      <div id="classroom-field">
+        <label class="table-label" for="delivery-location">Classroom</label>
+        <select id="delivery-location" class="table-input">
+          <option value="VY103">VY103</option>
+          <option value="VY104">VY104</option>
+          <option value="VY105">VY105</option>
+        </select>
+      </div>
 
       <h3>Meals</h3>
       <div id="meals" class="menu-grid"></div>
@@ -54,11 +65,11 @@
       <div>
         <p class="eyebrow">YOUR RECEIPT</p>
         <h2>Encave</h2>
-        <p>Vyas, MIT WPU</p>,<br>GSTIN: 27ABCDE1234F1Z5</p>
+        <p>Vyas, MIT WPU<br>GSTIN: 27ABCDE1234F1Z5</p>
       </div>
       <button id="new-order" class="secondary-button" type="button">New Order</button>
     </div>
-    <div class="bill-info"><span id="bill-number"></span><span id="bill-table"></span></div>
+    <div class="bill-info"><span id="bill-number"></span><span id="bill-location"></span></div>
     <div id="bill-lines"></div>
     <div class="bill-total"><span>Subtotal</span><span id="bill-subtotal"></span></div>
     <div class="bill-total"><span>GST 5%</span><span id="bill-gst"></span></div>
@@ -76,8 +87,17 @@
     }
 
     class RestaurantOrder {
-      constructor() {
+      constructor(deliveryOption) {
         this.items = [];
+        this.deliveryOption = deliveryOption;
+      }
+
+      setDeliveryOption(deliveryOption) {
+        this.deliveryOption = deliveryOption;
+      }
+
+      getDeliveryDetails() {
+        return this.deliveryOption.getDescription();
       }
 
       add(item) {
@@ -107,6 +127,29 @@
       }
     }
 
+    class DeliveryOption {
+      getDescription() {
+        throw new Error("Delivery options must provide a description.");
+      }
+    }
+
+    class ClassroomDelivery extends DeliveryOption {
+      constructor(classroom) {
+        super();
+        this.classroom = classroom;
+      }
+
+      getDescription() {
+        return `Classroom delivery - ${this.classroom}`;
+      }
+    }
+
+    class CounterPickup extends DeliveryOption {
+      getDescription() {
+        return "Counter pickup";
+      }
+    }
+
     const menu = {
       meals: [
         new MenuItem("Paneer Butter Masala", 220, "meal"),
@@ -122,7 +165,13 @@
         new MenuItem("Ice Cream", 80, "side")
       ]
     };
-    const order = new RestaurantOrder();
+    const deliveryType = document.getElementById("delivery-type");
+    const deliveryLocation = document.getElementById("delivery-location");
+    const classroomField = document.getElementById("classroom-field");
+    const getSelectedDeliveryOption = () => deliveryType.value === "classroom"
+      ? new ClassroomDelivery(deliveryLocation.value)
+      : new CounterPickup();
+    const order = new RestaurantOrder(getSelectedDeliveryOption());
     const money = amount => `Rs. ${amount.toFixed(2)}`;
 
     function showMenu(items, elementId) {
@@ -167,17 +216,13 @@
 
     function generateBill() {
       const message = document.getElementById("message");
-      const table = document.getElementById("table-number").value;
       if (!order.items.length) {
         message.textContent = "Please add at least one item first.";
         return;
       }
-      if (!table || Number(table) < 1) {
-        message.textContent = "Please enter a valid table number.";
-        return;
-      }
+      order.setDeliveryOption(getSelectedDeliveryOption());
       document.getElementById("bill-number").textContent = "Bill No: #0001";
-      document.getElementById("bill-table").textContent = `Table ${table}`;
+      document.getElementById("bill-location").textContent = order.getDeliveryDetails();
       document.getElementById("bill-lines").innerHTML = order.items.map(line =>
         `<div class="bill-line"><span>${line.item.name} × ${line.quantity}</span>
         <span>${money(line.item.price * line.quantity)}</span></div>`).join("");
@@ -190,9 +235,17 @@
     }
 
     document.getElementById("bill-button").addEventListener("click", generateBill);
+    deliveryType.addEventListener("change", () => {
+      classroomField.classList.toggle("hidden", deliveryType.value !== "classroom");
+      order.setDeliveryOption(getSelectedDeliveryOption());
+    });
+    deliveryLocation.addEventListener("change", () => {
+      order.setDeliveryOption(getSelectedDeliveryOption());
+    });
     document.getElementById("new-order").addEventListener("click", () => {
       order.items = [];
       updateCart();
+      order.setDeliveryOption(getSelectedDeliveryOption());
       document.getElementById("bill").classList.add("hidden");
       window.scrollTo({ top: 0, behavior: "smooth" });
     });

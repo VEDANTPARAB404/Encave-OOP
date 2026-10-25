@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <cmath>
 #include <ctime>
+#include <memory>
 using namespace std;
 
 // ---------- Class 1: one dish on the menu ----------
@@ -35,14 +36,34 @@ public:
     double getAmount() { return item.getPrice() * qty; }
 };
 
-// ---------- Class 3: all the lines for one table ----------
+// ---------- Delivery options demonstrate inheritance and runtime polymorphism ----------
+class DeliveryOption {
+public:
+    virtual string getDescription() const = 0;
+    virtual ~DeliveryOption() {}
+};
+
+class ClassroomDelivery : public DeliveryOption {
+private:
+    string classroom;
+public:
+    ClassroomDelivery(string room) : classroom(room) {}
+    string getDescription() const override { return "Classroom delivery - " + classroom; }
+};
+
+class CounterPickup : public DeliveryOption {
+public:
+    string getDescription() const override { return "Counter pickup"; }
+};
+
+// ---------- Class 3: all the lines and delivery option for one order ----------
 class Order {
 private:
-    int tableNo;
+    shared_ptr<DeliveryOption> deliveryOption;
     vector<OrderLine> lines;
 public:
-    Order(int t) { tableNo = t; }
-    int getTableNo() { return tableNo; }
+    Order(shared_ptr<DeliveryOption> option) : deliveryOption(option) {}
+    string getDeliveryDetails() const { return deliveryOption->getDescription(); }
     bool isEmpty() { return lines.empty(); }
     vector<OrderLine> getLines() { return lines; }
 
@@ -118,15 +139,15 @@ public:
         double total = order.getTotal();
         double rounded = round(total);
 
-        f << "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Chomp & Co. Bill</title>\n"
+        f << "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"utf-8\">\n<title>Encave Bill</title>\n"
           << "<link href=\"https://fonts.googleapis.com/css2?family=Bangers&family=Special+Elite&display=swap\" rel=\"stylesheet\">\n"
           << "<link rel=\"stylesheet\" href=\"style.css\">\n</head>\n<body>\n";
 
-        f << "<div class=\"banner\"><span class=\"chef\">&#128104;&#8205;&#127859;</span><h1>Chomp & Co.</h1></div>\n";
+        f << "<div class=\"banner\"><span class=\"chef\">&#128104;&#8205;&#127859;</span><h1>Encave</h1></div>\n";
         f << "<div class=\"receipt\">\n";
-        f << "  <div class=\"center\"><h2>&#127836; CHOMP & CO.</h2>Doodle Street, Toonville<br>GSTIN: 27ABCDE1234F1Z5</div>\n  <hr>\n";
+        f << "  <div class=\"center\"><h2>&#127836; ENCAVE</h2>Vyas, MIT WPU<br>GSTIN: 27ABCDE1234F1Z5</div>\n  <hr>\n";
         f << "  <div class=\"line\"><span>Bill No: #" << setw(4) << setfill('0') << billNo << setfill(' ')
-          << "</span><span>Table " << order.getTableNo() << "</span></div>\n";
+          << "</span><span>" << order.getDeliveryDetails() << "</span></div>\n";
         f << "  <div>" << date << "</div>\n  <hr>\n";
 
         f << "  <div class=\"row head\"><span>ITEM</span><span>QTY</span><span>AMT</span></div>\n";
@@ -153,11 +174,39 @@ public:
 // ---------- main: take an order in the console ----------
 int main() {
     Restaurant restaurant;
-    int tableNo;
+    vector<string> classrooms;
+    classrooms.push_back("VY103");
+    classrooms.push_back("VY104");
+    classrooms.push_back("VY105");
 
-    cout << "=== Chomp & Co. ===\nEnter table number: ";
-    cin >> tableNo;
-    Order order(tableNo);
+    cout << "=== Encave ===\nChoose delivery option:\n"
+         << "1. Classroom delivery\n"
+         << "2. Counter pickup\n"
+         << "Enter option: ";
+    int deliveryChoice;
+    cin >> deliveryChoice;
+
+    shared_ptr<DeliveryOption> deliveryOption;
+    if (deliveryChoice == 1) {
+        cout << "\nChoose classroom:\n";
+        for (int i = 0; i < classrooms.size(); i++)
+            cout << i + 1 << ". " << classrooms[i] << "\n";
+        int locationChoice;
+        cout << "Enter classroom number: ";
+        cin >> locationChoice;
+        if (locationChoice < 1 || locationChoice > classrooms.size()) {
+            cout << "Invalid classroom.\n";
+            return 0;
+        }
+        deliveryOption = make_shared<ClassroomDelivery>(classrooms[locationChoice - 1]);
+    } else if (deliveryChoice == 2) {
+        deliveryOption = make_shared<CounterPickup>();
+    } else {
+        cout << "Invalid delivery option.\n";
+        return 0;
+    }
+
+    Order order(deliveryOption);
 
     cout << "\nChoose your meals (0 when finished):\n";
     while (true) {
