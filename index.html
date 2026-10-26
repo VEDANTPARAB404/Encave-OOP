@@ -55,8 +55,27 @@
         <div><span>GST (5%)</span><strong id="gst">Rs. 0.00</strong></div>
         <div class="grand"><span>Total</span><strong id="total">Rs. 0.00</strong></div>
       </div>
-      <button id="bill-button" class="bill-button" type="button">Generate Bill</button>
+      <button id="bill-button" class="bill-button" type="button">Continue to Google Pay</button>
       <p id="message" class="message"></p>
+
+      <section id="payment-panel" class="payment-panel hidden" aria-labelledby="payment-heading">
+        <div class="payment-heading">
+          <div>
+            <p class="eyebrow">DEMO CHECKOUT</p>
+            <h3 id="payment-heading">Google Pay</h3>
+          </div>
+          <button id="cancel-payment" class="secondary-button" type="button">Cancel</button>
+        </div>
+        <p class="demo-notice">Simulation only. No real payment will be made.</p>
+        <div class="payment-amount"><span>Amount to pay</span><strong id="payment-amount"></strong></div>
+        <label class="table-label" for="payment-outcome">Simulate payment result</label>
+        <select id="payment-outcome" class="table-input">
+          <option value="success">Successful payment</option>
+          <option value="declined">Declined payment</option>
+        </select>
+        <button id="pay-button" class="bill-button" type="button">Pay with Google Pay</button>
+        <p id="payment-status" class="payment-status" role="status" aria-live="polite"></p>
+      </section>
     </aside>
   </main>
 
@@ -70,6 +89,8 @@
       <button id="new-order" class="secondary-button" type="button">New Order</button>
     </div>
     <div class="bill-info"><span id="bill-number"></span><span id="bill-location"></span></div>
+    <div class="bill-info"><span id="bill-payment-method"></span><span id="bill-payment-status"></span></div>
+    <div class="bill-info"><span id="bill-transaction"></span></div>
     <div id="bill-lines"></div>
     <div class="bill-total"><span>Subtotal</span><span id="bill-subtotal"></span></div>
     <div class="bill-total"><span>GST 5%</span><span id="bill-gst"></span></div>
@@ -90,6 +111,7 @@
       constructor(deliveryOption) {
         this.items = [];
         this.deliveryOption = deliveryOption;
+        this.paymentTransaction = null;
       }
 
       setDeliveryOption(deliveryOption) {
@@ -124,6 +146,38 @@
 
       total() {
         return this.subtotal() + this.gst();
+      }
+    }
+
+    class PaymentTransaction {
+      constructor(method, status, amount) {
+        this.method = method;
+        this.status = status;
+        this.amount = amount;
+        this.transactionId = status === "successful"
+          ? `ENC-${Date.now().toString(36).toUpperCase()}`
+          : "";
+      }
+    }
+
+    class PaymentMethod {
+      constructor(name) {
+        this.name = name;
+      }
+
+      processPayment() {
+        throw new Error("Payment methods must implement processPayment().");
+      }
+    }
+
+    class GooglePayDemo extends PaymentMethod {
+      constructor() {
+        super("Google Pay (Demo)");
+      }
+
+      processPayment(amount, outcome) {
+        const status = outcome === "success" ? "successful" : "declined";
+        return new PaymentTransaction(this.name, status, amount);
       }
     }
 
@@ -172,6 +226,7 @@
       ? new ClassroomDelivery(deliveryLocation.value)
       : new CounterPickup();
     const order = new RestaurantOrder(getSelectedDeliveryOption());
+    const googlePayDemo = new GooglePayDemo();
     const money = amount => `Rs. ${amount.toFixed(2)}`;
 
     function showMenu(items, elementId) {
@@ -212,17 +267,28 @@
       document.getElementById("subtotal").textContent = money(order.subtotal());
       document.getElementById("gst").textContent = money(order.gst());
       document.getElementById("total").textContent = money(order.total());
+      document.getElementById("payment-amount").textContent = money(order.total());
     }
 
-    function generateBill() {
+    function openPaymentPanel() {
       const message = document.getElementById("message");
       if (!order.items.length) {
         message.textContent = "Please add at least one item first.";
         return;
       }
       order.setDeliveryOption(getSelectedDeliveryOption());
+      document.getElementById("payment-status").textContent = "";
+      document.getElementById("payment-panel").classList.remove("hidden");
+      document.getElementById("payment-panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      message.textContent = "";
+    }
+
+    function generateBill(transaction) {
       document.getElementById("bill-number").textContent = "Bill No: #0001";
       document.getElementById("bill-location").textContent = order.getDeliveryDetails();
+      document.getElementById("bill-payment-method").textContent = `Paid using: ${transaction.method}`;
+      document.getElementById("bill-payment-status").textContent = "Payment: Successful (demo)";
+      document.getElementById("bill-transaction").textContent = `Demo transaction: ${transaction.transactionId}`;
       document.getElementById("bill-lines").innerHTML = order.items.map(line =>
         `<div class="bill-line"><span>${line.item.name} × ${line.quantity}</span>
         <span>${money(line.item.price * line.quantity)}</span></div>`).join("");
@@ -231,10 +297,51 @@
       document.getElementById("bill-total").textContent = money(order.total());
       document.getElementById("bill").classList.remove("hidden");
       document.getElementById("bill").scrollIntoView({ behavior: "smooth" });
-      message.textContent = "";
     }
 
-    document.getElementById("bill-button").addEventListener("click", generateBill);
+    function setOrderInputsDisabled(disabled) {
+      ["meals", "sides", "cart-items"].forEach(id => {
+        document.getElementById(id).querySelectorAll("button").forEach(button => {
+          button.disabled = disabled;
+        });
+      });
+      ["delivery-type", "delivery-location", "bill-button", "cancel-payment"].forEach(id => {
+        document.getElementById(id).disabled = disabled;
+      });
+    }
+
+    document.getElementById("bill-button").addEventListener("click", openPaymentPanel);
+    document.getElementById("cancel-payment").addEventListener("click", () => {
+      document.getElementById("payment-panel").classList.add("hidden");
+      document.getElementById("payment-status").textContent = "";
+    });
+    document.getElementById("pay-button").addEventListener("click", event => {
+      const button = event.currentTarget;
+      const status = document.getElementById("payment-status");
+      const outcome = document.getElementById("payment-outcome").value;
+      button.disabled = true;
+      setOrderInputsDisabled(true);
+      button.textContent = "Processing demo payment...";
+      status.className = "payment-status";
+      status.textContent = "Processing your simulated payment…";
+
+      window.setTimeout(() => {
+        const transaction = googlePayDemo.processPayment(order.total(), outcome);
+        order.paymentTransaction = transaction;
+        button.disabled = false;
+        setOrderInputsDisabled(false);
+        button.textContent = "Pay with Google Pay";
+
+        if (transaction.status === "successful") {
+          status.textContent = "Payment successful (demo). No money was transferred.";
+          document.getElementById("payment-panel").classList.add("hidden");
+          generateBill(transaction);
+        } else {
+          status.classList.add("payment-error");
+          status.textContent = "Payment declined (simulated). Your order has not been paid. You can try again.";
+        }
+      }, 700);
+    });
     deliveryType.addEventListener("change", () => {
       classroomField.classList.toggle("hidden", deliveryType.value !== "classroom");
       order.setDeliveryOption(getSelectedDeliveryOption());
@@ -247,6 +354,9 @@
       updateCart();
       order.setDeliveryOption(getSelectedDeliveryOption());
       document.getElementById("bill").classList.add("hidden");
+      document.getElementById("payment-panel").classList.add("hidden");
+      document.getElementById("payment-status").textContent = "";
+      order.paymentTransaction = null;
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
     showMenu(menu.meals, "meals");
